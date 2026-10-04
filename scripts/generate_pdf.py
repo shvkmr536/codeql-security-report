@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from xml.sax.saxutils import escape
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.pagesizes import A3, landscape
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.units import mm
@@ -30,7 +30,7 @@ def short(value, length):
     return value if len(value) <= length else value[:length - 1] + "…"
 
 def header_footer(canvas, doc, title, classification):
-    w, h = landscape(A4)
+    w, h = landscape(A3)
     canvas.saveState()
     canvas.setFillColor(colors.HexColor("#101828"))
     canvas.rect(0, h - 17 * mm, w, 17 * mm, fill=1, stroke=0)
@@ -72,9 +72,9 @@ def main():
     counts = Counter(severity(r) for r in rows)
     statuses = Counter(r.get("Status", "Unknown") for r in rows)
 
-    page_w, page_h = landscape(A4)
+    page_w, page_h = landscape(A3)
     doc = BaseDocTemplate(
-        str(args.output), pagesize=landscape(A4),
+        str(args.output), pagesize=landscape(A3),
         leftMargin=12 * mm, rightMargin=12 * mm,
         topMargin=24 * mm, bottomMargin=18 * mm,
         title=args.title,
@@ -139,25 +139,71 @@ def main():
         "Alert", "Rule", "Severity", "File / Line", "State",
         "Assignee / Owner", "Dismissed By", "Reason", "Triage Comment", "Commit"
     ]
-    data = [headers]
+    # Use Paragraphs so long values wrap inside their cells.
+    cell_style = ParagraphStyle(
+        name="FindingCell",
+        parent=styles["SmallX"],
+        fontSize=7.0,
+        leading=8.5,
+        spaceAfter=0,
+        wordWrap="CJK",
+    )
+    header_style = ParagraphStyle(
+        name="FindingHeader",
+        parent=styles["SmallX"],
+        fontSize=7.2,
+        leading=8.5,
+        textColor=colors.white,
+        fontName="Helvetica-Bold",
+        spaceAfter=0,
+    )
+
+    data = [[Paragraph(escape(h), header_style) for h in headers]]
+
     for r in rows:
+        location = f'{r.get("File", "")}:{r.get("Start Line", "")}'
+        cells = [
+            r.get("Alert ID", ""),
+            r.get("Rule ID", ""),
+            severity(r),
+            location,
+            r.get("Status", ""),
+            r.get("Assignee / Owner", ""),
+            r.get("Dismissed By", ""),
+            r.get("Dismissal Reason", ""),
+            r.get("Triage Comment", ""),
+            r.get("Commit SHA", ""),
+        ]
         data.append([
-            r["Alert ID"], short(r["Rule ID"], 40), severity(r),
-            short(f'{r["File"]}:{r["Start Line"]}', 42), short(r["Status"], 22),
-            short(r["Assignee / Owner"], 20), short(r["Dismissed By"], 16),
-            short(r["Dismissal Reason"], 18), short(r["Triage Comment"], 45),
-            short(r["Commit SHA"], 12),
+            Paragraph(escape(str(value or "")), cell_style)
+            for value in cells
         ])
 
+    # A3 landscape usable width with 12 mm margins is ~396 mm.
+    # The 344 mm table therefore fits without clipping while retaining
+    # readable widths for security-team triage fields.
     findings = Table(
-        data, repeatRows=1,
-        colWidths=[12*mm, 40*mm, 20*mm, 52*mm, 28*mm, 36*mm, 28*mm, 30*mm, 68*mm, 30*mm],
+        data,
+        repeatRows=1,
+        colWidths=[
+            16*mm,   # Alert
+            48*mm,   # Rule
+            24*mm,   # Severity
+            60*mm,   # File / Line
+            32*mm,   # State
+            42*mm,   # Assignee / Owner
+            32*mm,   # Dismissed By
+            36*mm,   # Reason
+            66*mm,   # Triage Comment
+            28*mm,   # Commit
+        ],
+        hAlign="LEFT",
     )
     findings.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#101828")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTSIZE", (0, 0), (-1, -1), 6.2),
+        ("FONTSIZE", (0, 0), (-1, -1), 7.0),
         ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#D0D5DD")),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
         ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F9FAFB")]),
