@@ -76,7 +76,7 @@ jobs:
         run: |
           python scripts/codeql_alerts.py \
             --owner shvkmr536 \
-            --repo maven-github-action \
+            --repo C_code_repo \
             --output "reports/${REPORT_DATE}/codeql-cpp-alerts.csv" \
             --verbose
         # --rule-prefix cpp/ \
