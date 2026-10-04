@@ -74,13 +74,19 @@ jobs:
 
         env:
           GITHUB_TOKEN: ${{ secrets.CODEQL_REPORT_TOKEN }}
-
         run: |
           python scripts/codeql_alerts.py \
-            --org shvkmr536 \
+            --repo shvkmr536/maven-github-action \
             --rule-prefix cpp/ \
             --output "reports/${REPORT_DATE}/codeql-cpp-alerts.csv" \
             --verbose
+
+        #run: |
+        #  python scripts/codeql_alerts.py \
+        #    --org shvkmr536 \
+        #    --rule-prefix cpp/ \
+        #    --output "reports/${REPORT_DATE}/codeql-cpp-alerts.csv" \
+        #    --verbose
 
       # ========================================================
       # GENERATE PDF
