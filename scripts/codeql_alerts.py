@@ -84,7 +84,8 @@ def export(args):
  except Exception: tmp.unlink(missing_ok=True); raise
  LOG.info('API alerts: %d; exported: %d; output: %s',received,written,out); return written
 def main():
- p=argparse.ArgumentParser(); p.add_argument('--api-base',default=os.getenv('GITHUB_API_BASE','https://api.github.com')); g=p.add_mutually_exclusive_group(required=True); g.add_argument('--org'); g.add_argument('--owner'); p.add_argument('--repo'); p.add_argument('--rule-prefix',action='append',dest='prefixes',default=['cpp/']); p.add_argument('--output',required=True); p.add_argument('--verbose',action='store_true'); a=p.parse_args();
+# p=argparse.ArgumentParser(); p.add_argument('--api-base',default=os.getenv('GITHUB_API_BASE','https://api.github.com')); g=p.add_mutually_exclusive_group(required=True); g.add_argument('--org'); g.add_argument('--owner'); p.add_argument('--repo'); p.add_argument('--rule-prefix',action='append',dest='prefixes',default=['cpp/']); p.add_argument('--output',required=True); p.add_argument('--verbose',action='store_true'); a=p.parse_args();
+ p=argparse.ArgumentParser(); p.add_argument('--api-base',default=os.getenv('GITHUB_API_BASE','https://api.github.com')); g=p.add_mutually_exclusive_group(required=True); g.add_argument('--org'); g.add_argument('--owner'); p.add_argument('--repo'); p.add_argument('--rule-prefix',action='append',dest='prefixes',default=[]); p.add_argument('--output',required=True); p.add_argument('--verbose',action='store_true'); a=p.parse_args();
  if a.owner and not a.repo:p.error('--repo is required with --owner')
  token=os.getenv('GITHUB_TOKEN')
  if not token:LOG.error('GITHUB_TOKEN is not set'); return 2
