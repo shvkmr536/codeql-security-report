@@ -1,0 +1,228 @@
+name: Publish CodeQL Security Report
+
+on:
+  workflow_dispatch:
+
+  schedule:
+    # Every Monday at 06:00 UTC
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: codeql-security-report
+  cancel-in-progress: false
+
+jobs:
+
+  # ============================================================
+  # BUILD SECURITY REPORT
+  # ============================================================
+  build-report:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # --------------------------------------------------------
+      # Checkout repository
+      # --------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      # --------------------------------------------------------
+      # Setup Python
+      # --------------------------------------------------------
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # --------------------------------------------------------
+      # Install dependencies
+      # --------------------------------------------------------
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      # --------------------------------------------------------
+      # Report date
+      # --------------------------------------------------------
+      - name: Set report date
+        run: |
+          echo "REPORT_DATE=$(date -u +%Y-%m-%d)" >> "$GITHUB_ENV"
+
+      # --------------------------------------------------------
+      # Create report directories
+      # --------------------------------------------------------
+      - name: Create report directories
+        run: |
+          mkdir -p "reports/${REPORT_DATE}"
+          mkdir -p site
+
+      # ========================================================
+      # EXPORT CODEQL ALERTS
+      # ========================================================
+      - name: Export CodeQL C/C++ alerts
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.CODEQL_REPORT_TOKEN }}
+
+        run: |
+          python scripts/codeql_alerts.py \
+            --org shvkmr536 \
+            --rule-prefix cpp/ \
+            --output "reports/${REPORT_DATE}/codeql-cpp-alerts.csv" \
+            --verbose
+
+      # ========================================================
+      # GENERATE PDF
+      # ========================================================
+      - name: Generate PDF
+
+        run: |
+          python scripts/generate_pdf.py \
+            --input "reports/${REPORT_DATE}/codeql-cpp-alerts.csv" \
+            --output "reports/${REPORT_DATE}/codeql-cpp-alerts.pdf" \
+            --title "CodeQL C/C++ Security Report" \
+            --classification "Confidential - Security" \
+            --team "Application Security" \
+            --business-unit "Engineering"
+
+      # ========================================================
+      # GENERATE HTML DASHBOARD
+      # ========================================================
+      - name: Generate dashboard and history
+
+        shell: bash
+
+        run: |
+
+          set -euo pipefail
+
+          # ----------------------------------------------------
+          # Copy latest reports to website root
+          # ----------------------------------------------------
+
+          cp \
+            "reports/${REPORT_DATE}/codeql-cpp-alerts.pdf" \
+            site/codeql-cpp-alerts.pdf
+
+          cp \
+            "reports/${REPORT_DATE}/codeql-cpp-alerts.csv" \
+            site/codeql-cpp-alerts.csv
+
+
+          # ----------------------------------------------------
+          # Copy historical reports
+          # ----------------------------------------------------
+
+          mkdir -p site/reports
+
+          cp -R reports/* site/reports/
+
+
+          # ----------------------------------------------------
+          # Build historical report arguments
+          # ----------------------------------------------------
+
+          ARGS=()
+
+          for d in reports/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]; do
+
+            [ -d "$d" ] || continue
+
+            label="$(basename "$d")"
+
+            ARGS+=(
+              --history
+              "$label"
+              "reports/$label/codeql-cpp-alerts.pdf"
+            )
+
+          done
+
+
+          # ----------------------------------------------------
+          # Generate index.html
+          # ----------------------------------------------------
+
+          python scripts/generate_html.py \
+            --input "reports/${REPORT_DATE}/codeql-cpp-alerts.csv" \
+            --output site/index.html \
+            --title "CodeQL C/C++ Security Portal" \
+            --report-pdf "codeql-cpp-alerts.pdf" \
+            --report-csv "codeql-cpp-alerts.csv" \
+            "${ARGS[@]}"
+
+
+      # ========================================================
+      # COMMIT HISTORICAL REPORT
+      # ========================================================
+      - name: Commit historical report
+
+        run: |
+
+          git config user.name "github-actions[bot]"
+
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add reports
+
+          if git diff --cached --quiet; then
+
+            echo "No report changes."
+
+          else
+
+            git commit \
+              -m "chore: publish CodeQL report ${REPORT_DATE}"
+
+            git push
+
+          fi
+
+
+      # ========================================================
+      # CONFIGURE GITHUB PAGES
+      # ========================================================
+      - name: Configure GitHub Pages
+
+        uses: actions/configure-pages@v5
+
+
+      # ========================================================
+      # UPLOAD WEBSITE ARTIFACT
+      # ========================================================
+      - name: Upload GitHub Pages artifact
+
+        uses: actions/upload-pages-artifact@v4
+
+        with:
+          path: site
+
+
+  # ============================================================
+  # DEPLOY GITHUB PAGES
+  # ============================================================
+  deploy:
+
+    needs: build-report
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
