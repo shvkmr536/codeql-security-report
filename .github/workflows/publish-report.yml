@@ -71,16 +71,16 @@ jobs:
       # EXPORT CODEQL ALERTS
       # ========================================================
       - name: Export CodeQL C/C++ alerts
-
         env:
           GITHUB_TOKEN: ${{ secrets.CODEQL_REPORT_TOKEN }}
         run: |
           python scripts/codeql_alerts.py \
-            --repo shvkmr536/maven-github-action \
+            --owner shvkmr536 \
+            --repo maven-github-action \
             --rule-prefix cpp/ \
             --output "reports/${REPORT_DATE}/codeql-cpp-alerts.csv" \
             --verbose
-
+        #for organization
         #run: |
         #  python scripts/codeql_alerts.py \
         #    --org shvkmr536 \
