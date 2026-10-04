@@ -1,0 +1,8 @@
+organization: "YOUR_ORGANIZATION"
+api_base: "https://api.github.com"
+rule_prefixes:
+  - "cpp/"
+report_title: "CodeQL C/C++ Security Report"
+classification: "Confidential - Security"
+team_name: "Application Security"
+business_unit: "Engineering"
